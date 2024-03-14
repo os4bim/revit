@@ -1,25 +1,26 @@
 # -*- coding: utf-8 -*-
 
-__doc__ = "Création automatique d'un bordereau de prix pour tuyauterie\nPrérequis :\n- Ouvrir une feuille Excel\n- Avoir au moins un segment, un fitting et un Accessory par cicuit"
+__doc__ = "Création automatique d'un bordereau de prix pour tuyauterie\nPrérequis :\n- Ouvrir une feuille Excel"
 __title__ = 'Export\nPipes'
 __author__ = 'Yoann OBRY'
 
-#BOM to Excel Pipes v1.0
+#BOM to Excel Pipes v2.0
 
 
-import clr
+from Autodesk.Revit.DB import *
 import System
-clr.AddReference('RevitAPI') 
-clr.AddReference('RevitAPIUI') 
-from Autodesk.Revit.DB import * 
-
 from System import Guid
+import math
+from pyrevit import forms
 
-
-app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
 
-import math
+
+#Fenêtre de confirmation
+res = forms.alert("Le quantitatif va être exporté sur la feuille Excel active de votre espace de travail.\n"
+                  "Voulez-vous continuer ?",
+                  yes=True, no=True, exitscript=True)
+
 
 #Shared parameter code circuit
 code_cir = Guid(r'55934d0c-0246-4ce2-9bdf-57ed4244e11b')
@@ -42,41 +43,38 @@ for PA in PAs:
 
 	
 	## Get Type Parameter value
-	PA_type = doc.GetElement(PA.GetTypeId())
+    PA_type = doc.GetElement(PA.GetTypeId())
 	
 	# Element ID - Instance Parameter
 	#print PA.Id
 
 	# Code circuit - Instance Parameter (Shared Parameter)
-	code_circuit = PA.get_Parameter(code_cir)
-	PA_code_circuit.append(code_circuit.AsString())
+    code_circuit = PA.get_Parameter(code_cir).AsString()
+    if code_circuit == None or code_circuit == '':
+        code_circuit = '_N/A'
+    PA_code_circuit.append(code_circuit)
 
 	# Family Name - Type Parameter
-	family_name = PA_type.get_Parameter(
+    family_name = PA_type.get_Parameter(
 					BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
-	PA_family_name.append(family_name.AsString())
+    PA_family_name.append(family_name.AsString())
 
 	# Description - Type Parameter
-	description = PA_type.get_Parameter(
-					BuiltInParameter.ALL_MODEL_DESCRIPTION)
-	PA_description.append(description.AsString())
+    description = PA_type.get_Parameter(
+					BuiltInParameter.ALL_MODEL_DESCRIPTION).AsString()
+    if description == None:
+        description = ''
+    PA_description.append(description)
 	
 	# Size - Instance Parameter
-	size = PA.get_Parameter(
+    size = PA.get_Parameter(
 					BuiltInParameter.RBS_CALCULATED_SIZE)
-	PA_size.append(size.AsString())
+    PA_size.append(size.AsString())
 
-## Change les valeurs 'None' et '' en 'N/A'
-for i in range(len(PA_code_circuit)):
-    if PA_code_circuit[i] == None or PA_code_circuit[i] == '':
-        PA_code_circuit[i] = '_N/A'
 
 ## Assemblage des listes de caractéristiques en une seule
 PA_libelle = [PA_family_name[i] +"  "+ PA_description[i] +"  "+ PA_size[i] for i in range(len(PA_code_circuit))]
 
-## Identification des codes circuits
-circuit_unique = set(PA_code_circuit)
-circuit_unique = list(circuit_unique)
 
 ## Créer une liste par élément avec unité de mesure et count=1
 lstPA = [[PA_code_circuit[i],PA_libelle[i],'u',1] for i in range(len(PA_code_circuit))]
@@ -94,8 +92,6 @@ setPA=set(tuple(row) for row in lstPA)
 lstPA=list(setPA)
 lstPA.sort()
 
-if not lstPA:
-	lstPA.append("Nulle")
 
 print(lstPA)
 
@@ -121,8 +117,10 @@ for PI in PIs:
 	#print PI.Id
 
 	# Code circuit - Instance Parameter (Shared Parameter)
-	code_circuit = PI.get_Parameter(code_cir)
-	PI_code_circuit.append(code_circuit.AsString())
+	code_circuit = PI.get_Parameter(code_cir).AsString()
+	if code_circuit == None or code_circuit == '':
+		code_circuit = '_N/A'
+	PI_code_circuit.append(code_circuit)
 
 	# Type Name - Type Parameter
 	type_name = PI_type.get_Parameter(
@@ -138,11 +136,6 @@ for PI in PIs:
 	length = PI.get_Parameter(
 					BuiltInParameter.CURVE_ELEM_LENGTH)
 	PI_length.append(length.AsDouble())
-
-## Change les valeurs 'None' et '' en 'N/A'
-for i in range(len(PI_code_circuit)):
-    if PI_code_circuit[i] == None or PI_code_circuit[i] == '':
-        PI_code_circuit[i] = '_N/A'
 
 
 ## Assemblage des listes de caractéristiques en une seule
@@ -186,8 +179,10 @@ for PF in PFs:
 	#print PF.Id
 
 	# Code circuit - Instance Parameter (Shared Parameter)
-	code_circuit = PF.get_Parameter(code_cir)
-	PF_code_circuit.append(code_circuit.AsString())
+	code_circuit = PF.get_Parameter(code_cir).AsString()
+	if code_circuit == None or code_circuit == '':
+		code_circuit = '_N/A'
+	PF_code_circuit.append(code_circuit)
 
 	# Family Name - Type Parameter
 	family_name = PF_type.get_Parameter(
@@ -207,35 +202,23 @@ for PF in PFs:
 	# Angle	- Instance Parameter (Shared Parameter)
 	angle_coude = PF.get_Parameter(angle)
 	if angle_coude:
-		PF_angle.append(angle_coude.AsDouble() * 180 / math.pi)
+		angle_coude = angle_coude.AsDouble()
+        # Arrondi les angles des pipes fittings
+		if 85 <= angle_coude <= 95:
+			angle_coude = 90
+		elif 55 <= angle_coude <= 65:
+			angle_coude = 60
+		elif 40 <= angle_coude <= 50:
+			angle_coude = 45
+		elif 25 <= angle_coude <= 35:
+			angle_coude = 30
+		elif 15 <= angle_coude <= 25:
+			angle_coude = 20
+      
+		PF_angle.append(angle_coude * 180 / math.pi)
+        
 	else:
 		PF_angle.append(0)
-
-## Arrondi les angles des pipes fittings		
-for i in range(len(PF_angle)):
-    if 85 <= PF_angle[i] <= 95:
-        PF_angle[i] = 90
-
-for i in range(len(PF_angle)):
-    if 55 <= PF_angle[i] <= 65:
-        PF_angle[i] = 60	
-		
-for i in range(len(PF_angle)):
-    if 40 <= PF_angle[i] <= 50:
-        PF_angle[i] = 45
-		
-for i in range(len(PF_angle)):
-    if 25 < PF_angle[i] <= 35:
-        PF_angle[i] = 30
-		
-for i in range(len(PF_angle)):
-    if 15 <= PF_angle[i] <= 25:
-        PF_angle[i] = 20		
-
-## Change les valeurs 'None' et '' en 'N/A'
-for i in range(len(PF_code_circuit)):
-    if PF_code_circuit[i] == None or PF_code_circuit[i] == '':
-        PF_code_circuit[i] = '_N/A'
 
 
 
@@ -245,11 +228,6 @@ PF_libelle = [PF_family_name[i] +"  "+ PF_type_name[i] +"  "+ PF_size[i] +"  "+ 
 ## Efface les angles nuls dans le libellé
 PF_libelle = [w.replace('  0°','') for w in PF_libelle]
 
-
-## Identification des codes circuits
-circuit_unique = set(PF_code_circuit)
-circuit_unique = list(circuit_unique)
-circuit_unique.sort()
 
 ## Créer une liste PF d'éléments avec unité de mesure et count=1
 lstPF = [[PF_code_circuit[i],PF_libelle[i],'u',1] for i in range(len(PF_code_circuit))]
@@ -271,12 +249,44 @@ print(lstPF)
 
 
 
-		### Exporter les données dans Excel ###
+##Ajout des codes circuit manquant dans les categories pour l'écriture
+#dans Excel
 
-#Command write in excel
-t = Transaction(doc, 'Write Excel.')
- 
-t.Start()
+# Identification des codes circuits
+circuit_unique = sorted(set(PA_code_circuit + PI_code_circuit + PF_code_circuit))
+
+#Codes circuit manquants
+def elements_absents(circuit_unique, lstPA):
+    # Crée un ensemble (set) à partir des éléments de lstPA
+    lstPA_elements = set(item[0] for item in lstPA)
+    
+    # Filtrage des éléments de circuit_unique qui ne sont pas dans lstPA
+    elements_absents = [element for element in circuit_unique if element not in lstPA_elements]
+    
+    return elements_absents
+
+
+code_absent_PA = elements_absents(circuit_unique, lstPA)
+code_absent_PI = elements_absents(circuit_unique, lstPI)
+code_absent_PF = elements_absents(circuit_unique, lstPF)
+
+
+#Mise à jour de la liste des PA, PI et PF
+def update_lst(code_absent,lstP):
+    if len(code_absent) > 0:
+        for i,item in enumerate(code_absent):
+            lstP.append((code_absent[i],'N/A','N/A',0))
+    
+    lstP.sort()
+    return update_lst
+            
+update_lst(code_absent_PA,lstPA)
+update_lst(code_absent_PI,lstPI)
+update_lst(code_absent_PF,lstPF)
+
+
+
+		### Exporter les données dans Excel ###
  
 #Accessing the Excel applications.
 xlApp = System.Runtime.InteropServices.Marshal.GetActiveObject('Excel.Application')
@@ -300,23 +310,9 @@ saut_ligne = 0
 def find(c,d):
 	return [(i, premier.index(c)) for i, premier in enumerate(d) if c in premier]
 
-##Exceptions de l'Index Error
-
-for i in range(len(circuit_unique)):
-	try:
-		lstPA[i][0]
-	except IndexError:
-		print("Chaque circuit doit contenir au moins un Pipe, un Pipe fitting et un Pipe Accessory") #Valeur attendu : 'R03'
-		
-		
-for i in range(len(circuit_unique)):
-	try:
-		find(circuit_unique[i],lstPA)[0][0]
-	except IndexError:
-		print("Chaque circuit doit contenir au moins un Pipe, un Pipe fitting et un Pipe Accessory")	#Valeur attendu : 'Numéro de l'index dans lstPA pour le premier PA 'R03'
 	
 
-for k in range(len(circuit_unique)):
+for k, item in enumerate(circuit_unique):
 
 	count_lstPA = 0
 	count_lstPI = 0
@@ -342,7 +338,7 @@ for k in range(len(circuit_unique)):
 	# Eléments
 	saut_ligne += 1
 	decal = find(circuit_unique[k],lstPA)[0][0]
-	for i in range(len(lstPA)):
+	for i,item in enumerate(lstPA):
 
 		if lstPA[i][0] == circuit_unique[k]:
 			#Worksheet object specifying the cell location.
@@ -375,7 +371,7 @@ for k in range(len(circuit_unique)):
 	#Eléments
 	saut_ligne += 1
 	decal = find(circuit_unique[k],lstPI)[0][0]
-	for i in range(len(lstPI)):
+	for i,item in enumerate(lstPI):
 
 		if lstPI[i][0] == circuit_unique[k]:
 
@@ -406,7 +402,7 @@ for k in range(len(circuit_unique)):
 	#Eléments
 	saut_ligne += 1
 	decal = find(circuit_unique[k],lstPF)[0][0]
-	for i in range(len(lstPF)):
+	for i,item in enumerate(lstPF):
 
 		if lstPF[i][0] == circuit_unique[k]:
 
@@ -434,6 +430,7 @@ for k in range(len(circuit_unique)):
 	count_circuit += count_lstPA + count_lstPI + count_lstPF
 	saut_ligne += 2
 	
-	
-	
-t.Commit()
+
+##Afficher une console pour maintenance
+#from rpw.ui.forms import Console
+#Console(context=locals())
