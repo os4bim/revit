@@ -1,25 +1,26 @@
 # -*- coding: utf-8 -*-
 
-__doc__ = "Création automatique d'un bordereau de prix pour gaines de ventilation\nPrérequis :\n- Ouvrir une feuille Excel\n- Avoir au moins un segment, un fitting et un Accessory par cicuit"
+__doc__ = "Création automatique d'un bordereau de prix pour gaines de ventilation\nPrérequis :\n- Ouvrir une feuille Excel"
 __title__ = 'Export\nDucts'
 __author__ = 'Yoann OBRY'
 
-#BOM to Excel Ducts v1.0
+#BOM to Excel Ducts v2.0
 
-import clr
+from Autodesk.Revit.DB import *
 import System
-clr.AddReference('RevitAPI') 
-clr.AddReference('RevitAPIUI') 
-from Autodesk.Revit.DB import * 
-
 from System import Guid
+import math
+from pyrevit import forms
 
-
-app = __revit__.Application
 doc = __revit__.ActiveUIDocument.Document
 
-import math
 
+#Fenêtre de confirmation
+res = forms.alert("Le quantitatif va être exporté sur la feuille Excel active de votre espace de travail.\n"
+                  "Voulez-vous continuer ?",
+                  yes=True, no=True, exitscript=True)
+                  
+                  
 #Shared parameter code circuit
 code_cir = Guid(r'55934d0c-0246-4ce2-9bdf-57ed4244e11b')
 
@@ -39,36 +40,36 @@ DA_size = []
 
 for DA in DAs:
 
-	
-	## Get Type Parameter value
-	DA_type = doc.GetElement(DA.GetTypeId())
-	
-	# Element ID - Instance Parameter
-	#print DA.Id
+    
+    ## Get Type Parameter value
+    DA_type = doc.GetElement(DA.GetTypeId())
+    
+    # Element ID - Instance Parameter
+    #print DA.Id
 
-	# Code circuit - Instance Parameter (Shared Parameter)
-	code_circuit = DA.get_Parameter(code_cir)
-	DA_code_circuit.append(code_circuit.AsString())
+    # Code circuit - Instance Parameter (Shared Parameter)
+    code_circuit = DA.get_Parameter(code_cir).AsString()
+    if code_circuit == None or code_circuit == '':
+        code_circuit = '_N/A'
+    DA_code_circuit.append(code_circuit)
 
-	# Family Name - Type Parameter
-	family_name = DA_type.get_Parameter(
-					BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
-	DA_family_name.append(family_name.AsString())
+    # Family Name - Type Parameter
+    family_name = DA_type.get_Parameter(
+                    BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
+    DA_family_name.append(family_name.AsString())
 
-	# Description - Type Parameter
-	description = DA_type.get_Parameter(
-					BuiltInParameter.ALL_MODEL_DESCRIPTION)
-	DA_description.append(description.AsString())
-	
-	# Size - Instance Parameter
-	size = DA.get_Parameter(
-					BuiltInParameter.RBS_CALCULATED_SIZE)
-	DA_size.append(size.AsString())
+    # Description - Type Parameter
+    description = DA_type.get_Parameter(
+                    BuiltInParameter.ALL_MODEL_DESCRIPTION).AsString()
+    if description == None:
+        description = ''
+    DA_description.append(description)
+    
+    # Size - Instance Parameter
+    size = DA.get_Parameter(
+                    BuiltInParameter.RBS_CALCULATED_SIZE)
+    DA_size.append(size.AsString())
 
-## Change les valeurs 'None' et '' en 'N/A'
-for i in range(len(DA_code_circuit)):
-    if DA_code_circuit[i] == None or DA_code_circuit[i] == '':
-        DA_code_circuit[i] = '_N/A'
 
 ## Assemblage des listes de caractéristiques en une seule
 DA_libelle = [DA_family_name[i] +"  "+ DA_description[i] +"  "+ DA_size[i] for i in range(len(DA_code_circuit))]
@@ -93,10 +94,6 @@ setDA=set(tuple(row) for row in lstDA)
 lstDA=list(setDA)
 lstDA.sort()
 
-if not lstDA:
-	lstDA.append("Nulle")
-
-print(lstDA)
 
 
 ### DT : Création d'un BOM de DUCT SEGMENTS sous forme de liste de tuple
@@ -112,36 +109,34 @@ DT_length = []
 
 for DT in DTs:
 
-	
-	## Get Type Parameter value
-	DT_type = doc.GetElement(DT.GetTypeId())
-	
-	# Element ID - Instance Parameter
-	#print DT.Id
+    
+    ## Get Type Parameter value
+    DT_type = doc.GetElement(DT.GetTypeId())
+    
+    # Element ID - Instance Parameter
+    #print DT.Id
 
-	# Code circuit - Instance Parameter (Shared Parameter)
-	code_circuit = DT.get_Parameter(code_cir)
-	DT_code_circuit.append(code_circuit.AsString())
+    # Code circuit - Instance Parameter (Shared Parameter)
+    code_circuit = DT.get_Parameter(code_cir).AsString()
+    if code_circuit == None or code_circuit == '':
+        code_circuit = '_N/A'
+    DT_code_circuit.append(code_circuit)
 
-	# Type Name - Type Parameter
-	type_name = DT_type.get_Parameter(
-					BuiltInParameter.SYMBOL_NAME_PARAM)
-	DT_type_name.append(type_name.AsString())
+    # Type Name - Type Parameter
+    type_name = DT_type.get_Parameter(
+                    BuiltInParameter.SYMBOL_NAME_PARAM)
+    DT_type_name.append(type_name.AsString())
 
-	# Size - Instance Parameter
-	size = DT.get_Parameter(
-					BuiltInParameter.RBS_CALCULATED_SIZE)
-	DT_size.append(size.AsString())
+    # Size - Instance Parameter
+    size = DT.get_Parameter(
+                    BuiltInParameter.RBS_CALCULATED_SIZE)
+    DT_size.append(size.AsString())
 
-	# Length - Instance Parameter
-	length = DT.get_Parameter(
-					BuiltInParameter.CURVE_ELEM_LENGTH)
-	DT_length.append(length.AsDouble())
+    # Length - Instance Parameter
+    length = DT.get_Parameter(
+                    BuiltInParameter.CURVE_ELEM_LENGTH)
+    DT_length.append(length.AsDouble())
 
-## Change les valeurs 'None' et '' en 'N/A'
-for i in range(len(DT_code_circuit)):
-    if DT_code_circuit[i] == None or DT_code_circuit[i] == '':
-        DT_code_circuit[i] = '_N/A'
 
 
 ## Assemblage des listes de caractéristiques en une seule
@@ -160,7 +155,6 @@ lstDT = [[lstDT[i][0],lstDT[i][1],'m',lstDT[i][2]] for i in range(len(lstDT))]
 
 lstDT.sort()
 
-print(lstDT)
 
 
 ### DF : Création d'un BOM de DUCT FITTINGS sous forme de liste de tuple
@@ -177,65 +171,53 @@ DF_angle = []
 
 for DF in DFs:
 
-	
-	## Get Type Parameter value
-	DF_type = doc.GetElement(DF.GetTypeId())
-	
-	# Element ID - Instance Parameter
-	#print PF.Id
+    ## Get Type Parameter value
+    DF_type = doc.GetElement(DF.GetTypeId())
+    
+    # Element ID - Instance Parameter
+    #print PF.Id
 
-	# Code circuit - Instance Parameter (Shared Parameter)
-	code_circuit = DF.get_Parameter(code_cir)
-	DF_code_circuit.append(code_circuit.AsString())
+    # Code circuit - Instance Parameter (Shared Parameter)
+    code_circuit = DF.get_Parameter(code_cir).AsString()
+    if code_circuit == None or code_circuit == '':
+        code_circuit = '_N/A'
+    DF_code_circuit.append(code_circuit)
 
-	# Family Name - Type Parameter
-	family_name = DF_type.get_Parameter(
-					BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
-	DF_family_name.append(family_name.AsString())
+    # Family Name - Type Parameter
+    family_name = DF_type.get_Parameter(
+                    BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
+    DF_family_name.append(family_name.AsString())
 
-	# Type Name - Type Parameter
-	type_name = DF_type.get_Parameter(
-					BuiltInParameter.SYMBOL_NAME_PARAM)
-	DF_type_name.append(type_name.AsString())
-	
-	# Size - Instance Parameter
-	size = DF.get_Parameter(
-					BuiltInParameter.RBS_CALCULATED_SIZE)
-	DF_size.append(size.AsString())
+    # Type Name - Type Parameter
+    type_name = DF_type.get_Parameter(
+                    BuiltInParameter.SYMBOL_NAME_PARAM)
+    DF_type_name.append(type_name.AsString())
+    
+    # Size - Instance Parameter
+    size = DF.get_Parameter(
+                    BuiltInParameter.RBS_CALCULATED_SIZE)
+    DF_size.append(size.AsString())
 
-	# Angle	- Instance Parameter (Shared Parameter)
-	angle_coude = DF.get_Parameter(angle)
-	if angle_coude:
-		DF_angle.append(angle_coude.AsDouble() * 180 / math.pi)
-	else:
-		DF_angle.append(0)
-
-## Arrondi les angles des ducts fittings		
-for i in range(len(DF_angle)):
-    if 85 <= DF_angle[i] <= 95:
-        DF_angle[i] = 90
-
-for i in range(len(DF_angle)):
-    if 55 <= DF_angle[i] <= 65:
-        DF_angle[i] = 60	
-		
-for i in range(len(DF_angle)):
-    if 40 <= DF_angle[i] <= 50:
-        DF_angle[i] = 45
-		
-for i in range(len(DF_angle)):
-    if 25 < DF_angle[i] <= 35:
-        DF_angle[i] = 30
-		
-for i in range(len(DF_angle)):
-    if 15 <= DF_angle[i] <= 25:
-        DF_angle[i] = 20		
-
-## Change les valeurs 'None' et '' en 'N/A'
-for i in range(len(DF_code_circuit)):
-    if DF_code_circuit[i] == None or DF_code_circuit[i] == '':
-        DF_code_circuit[i] = '_N/A'
-
+    # Angle	- Instance Parameter (Shared Parameter)
+    angle_coude = DF.get_Parameter(angle)
+    if angle_coude:
+        angle_coude = angle_coude.AsDouble()
+        # Arrondi les angles des pipes fittings
+        if 85 <= angle_coude <= 95:
+            angle_coude = 90
+        elif 55 <= angle_coude <= 65:
+            angle_coude = 60
+        elif 40 <= angle_coude <= 50:
+            angle_coude = 45
+        elif 25 <= angle_coude <= 35:
+            angle_coude = 30
+        elif 15 <= angle_coude <= 25:
+            angle_coude = 20
+      
+        DF_angle.append(angle_coude * 180 / math.pi)
+        
+    else:
+        DF_angle.append(0)
 
 
 ## Assemblage des listes de caractéristiques en une seule
@@ -266,16 +248,49 @@ setDF=set(tuple(row) for row in lstDF)
 lstDF=list(setDF)
 lstDF.sort()
 
+
+##Ajout des codes circuit manquant dans les categories pour l'écriture
+#dans Excel
+
+# Identification des codes circuits
+circuit_unique = sorted(set(DA_code_circuit + DT_code_circuit + DF_code_circuit))
+
+#Codes circuit manquants
+def elements_absents(circuit_unique, lstPA):
+    # Crée un ensemble (set) à partir des éléments de lstPA
+    lstPA_elements = set(item[0] for item in lstPA)
+    
+    # Filtrage des éléments de circuit_unique qui ne sont pas dans lstPA
+    elements_absents = [element for element in circuit_unique if element not in lstPA_elements]
+    
+    return elements_absents
+
+
+code_absent_DA = elements_absents(circuit_unique, lstDA)
+code_absent_DT = elements_absents(circuit_unique, lstDT)
+code_absent_DF = elements_absents(circuit_unique, lstDF)
+
+
+#Mise à jour de la liste des PA, PI et PF
+def update_lst(code_absent,lstP):
+    if len(code_absent) > 0:
+        for i,item in enumerate(code_absent):
+            lstP.append((code_absent[i],'N/A','N/A',0))
+    
+    lstP.sort()
+    return update_lst
+            
+update_lst(code_absent_DA,lstDA)
+update_lst(code_absent_DT,lstDT)
+update_lst(code_absent_DF,lstDF)
+
+print(lstDA)
+print(lstDT)
 print(lstDF)
 
 
 
 		### Exporter les données dans Excel ###
-
-#Command write in excel
-t = Transaction(doc, 'Write Excel.')
- 
-t.Start()
  
 #Accessing the Excel applications.
 xlApp = System.Runtime.InteropServices.Marshal.GetActiveObject('Excel.Application')
@@ -299,23 +314,8 @@ saut_ligne = 0
 def find(c,d):
 	return [(i, premier.index(c)) for i, premier in enumerate(d) if c in premier]
 
-##Exceptions de l'Index Error
 
-for i in range(len(circuit_unique)):
-	try:
-		lstDA[i][0]
-	except IndexError:
-		print("Chaque circuit doit contenir au moins un Duct, un Duct fitting et un Duct Accessory") #Valeur attendu : 'R03'
-		
-		
-for i in range(len(circuit_unique)):
-	try:
-		find(circuit_unique[i],lstDA)[0][0]
-	except IndexError:
-		print("Chaque circuit doit contenir au moins un Duct, un Duct fitting et un Duct Accessory")	#Valeur attendu : 'Numéro de l'index dans lstDA pour le premier DA 'R03'
-	
-
-for k in range(len(circuit_unique)):
+for k, item in enumerate(circuit_unique):
 
 	count_lstDA = 0
 	count_lstDT = 0
@@ -341,7 +341,7 @@ for k in range(len(circuit_unique)):
 	# Eléments
 	saut_ligne += 1
 	decal = find(circuit_unique[k],lstDA)[0][0]
-	for i in range(len(lstDA)):
+	for i, item in enumerate(lstDA):
 
 		if lstDA[i][0] == circuit_unique[k]:
 			#Worksheet object specifying the cell location.
@@ -374,7 +374,7 @@ for k in range(len(circuit_unique)):
 	#Eléments
 	saut_ligne += 1
 	decal = find(circuit_unique[k],lstDT)[0][0]
-	for i in range(len(lstDT)):
+	for i, item in enumerate(lstDT):
 
 		if lstDT[i][0] == circuit_unique[k]:
 
@@ -405,7 +405,7 @@ for k in range(len(circuit_unique)):
 	#Eléments
 	saut_ligne += 1
 	decal = find(circuit_unique[k],lstDF)[0][0]
-	for i in range(len(lstDF)):
+	for i, item in enumerate(lstDF):
 
 		if lstDF[i][0] == circuit_unique[k]:
 
@@ -434,5 +434,6 @@ for k in range(len(circuit_unique)):
 	saut_ligne += 2
 	
 	
-	
-t.Commit()
+##Afficher une console pour maintenance
+#from rpw.ui.forms import Console
+#Console(context=locals())
